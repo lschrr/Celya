@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Traverse les canaux</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      font-family: Arial, sans-serif;
+      background: #f7f3eb;
+      text-align: center;
+    }
+
+    h1 {
+      margin-bottom: 8px;
+    }
+
+    p {
+      margin-top: 0;
+    }
+
+    #status {
+      font-weight: bold;
+      margin: 12px 0;
+      font-size: 18px;
+    }
+
+    #game {
+      position: relative;
+      width: 350px;
+      height: 490px;
+      margin: 20px auto;
+      border: 4px solid #333;
+      overflow: hidden;
+      background: #bfe7ff;
+      border-radius: 12px;
+    }
+
+    .row {
+      position: absolute;
+      left: 0;
+      width: 100%;
+      height: 70px;
+      box-sizing: border-box;
+    }
+
+    .safe {
+      background: #d8f3c0;
+    }
+
+    .water {
+      background: #9ed8ff;
+    }
+
+    .finish {
+      background: #ffe7a3;
+    }
+
+    #player {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+      font-size: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: left 0.12s ease, top 0.12s ease;
+      z-index: 5;
+    }
+
+    .obstacle {
+      position: absolute;
+      width: 56px;
+      height: 50px;
+      font-size: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 4;
+    }
+
+    #phrase {
+      min-height: 90px;
+      max-width: 520px;
+      margin: 18px auto 0;
+      font-size: 20px;
+      line-height: 1.6;
+    }
+
+    #controls {
+      display: grid;
+      grid-template-columns: 70px 70px 70px;
+      gap: 10px;
+      justify-content: center;
+      margin-top: 20px;
+    }
+
+    #controls button, #restart {
+      font-size: 22px;
+      padding: 12px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+    }
+
+    #restart {
+      margin-top: 18px;
+      font-size: 16px;
+      padding: 10px 16px;
+    }
+
+    .empty {
+      visibility: hidden;
+    }
+  </style>
+</head>
+<body>
+  <h1>🚤 Traverse les canaux</h1>
+  <p>Version Crossy Road • 3 niveaux • 1 morceau de phrase par niveau</p>
+
+  <div id="status">Niveau 1/3</div>
+
+  <div id="game"></div>
+
+  <div id="phrase"></div>
+
+  <div id="controls">
+    <div class="empty">.</div>
+    <button id="up">⬆️</button>
+    <div class="empty">.</div>
+
+    <button id="left">⬅️</button>
+    <button id="down">⬇️</button>
+    <button id="right">➡️</button>
+  </div>
+
+  <button id="restart">Recommencer</button>
+
+  <script>
+    const game = document.getElementById("game");
+    const statusEl = document.getElementById("status");
+    const phraseEl = document.getElementById("phrase");
+
+    const upBtn = document.getElementById("up");
+    const downBtn = document.getElementById("down");
+    const leftBtn = document.getElementById("left");
+    const rightBtn = document.getElementById("right");
+    const restartBtn = document.getElementById("restart");
+
+    const CELL = 70;
+    const COLS = 5;
+    const ROWS = 7;
+
+    const levels = [
+      {
+        text: "Là où les histoires",
+        playerEmoji: "🛶",
+        obstacleEmoji: "🚤",
+        lanes: [
+          { type: "finish" },
+          { type: "water", speed: 1.2, obstacles: [0, 2] },
+          { type: "water", speed: -1.6, obstacles: [1, 4] },
+          { type: "safe" },
+          { type: "water", speed: 1.8, obstacles: [0, 3] },
+          { type: "water", speed: -1.3, obstacles: [2] },
+          { type: "safe" }
+        ]
+      },
+      {
+        text: "dorment depuis",
+        playerEmoji: "🛶",
+        obstacleEmoji: "🚤",
+        lanes: [
+          { type: "finish" },
+          { type: "water", speed: 2.0, obstacles: [0, 2, 4] },
+          { type: "water", speed: -1.7, obstacles: [1, 3] },
+          { type: "safe" },
+          { type: "water", speed: 2.2, obstacles: [0, 3] },
+          { type: "water", speed: -1.9, obstacles: [2, 4] },
+          { type: "safe" }
+        ]
+      },
+      {
+        text: "des siècles…",
+        playerEmoji: "🛶",
+        obstacleEmoji: "🚤",
+        lanes: [
+          { type: "finish" },
+          { type: "water", speed: 2.4, obstacles: [0, 2, 4] },
+          { type: "water", speed: -2.2, obstacles: [1, 3] },
+          { type: "water", speed: 2.0, obstacles: [0, 3] },
+          { type: "safe" },
+          { type: "water", speed: -2.5, obstacles: [1, 2, 4] },
+          { type: "safe" }
+        ]
+      }
+    ];
+
+    let currentLevel = 0;
+    let playerCol = 2;
+    let playerRow = 6;
+    let obstacles = [];
+    let playerEl = null;
+    let isGameRunning = true;
+
+    function createRows() {
+      game.innerHTML = "";
+      const config = levels[currentLevel];
+
+      for (let row = 0; row < ROWS; row++) {
+        const lane = config.lanes[row];
+        const rowEl = document.createElement("div");
+        rowEl.className = `row ${lane.type}`;
+        rowEl.style.top = `${row * CELL}px`;
+        game.appendChild(rowEl);
+      }
+
+      playerEl = document.createElement("div");
+      playerEl.id = "player";
+      playerEl.textContent = config.playerEmoji;
+      game.appendChild(playerEl);
+
+      obstacles = [];
+
+      config.lanes.forEach((lane, rowIndex) => {
+        if (lane.type !== "water") return;
+
+        lane.obstacles.forEach((colIndex) => {
+          const obs = document.createElement("div");
+          obs.className = "obstacle";
+          obs.textContent = config.obstacleEmoji;
+          obs.style.top = `${rowIndex * CELL + 10}px`;
+          obs.style.left = `${colIndex * CELL + 7}px`;
+          game.appendChild(obs);
+
+          obstacles.push({
+            el: obs,
+            row: rowIndex,
+            x: colIndex * CELL + 7,
+            speed: lane.speed
+          });
+        });
+      });
+
+      resetPlayerPosition();
+      statusEl.textContent = `Niveau ${currentLevel + 1}/3`;
+    }
+
+    function resetPlayerPosition() {
+      playerCol = 2;
+      playerRow = 6;
+      updatePlayerPosition();
+    }
+
+    function updatePlayerPosition() {
+      playerEl.style.left = `${playerCol * CELL + 10}px`;
+      playerEl.style.top = `${playerRow * CELL + 10}px`;
+    }
+
+    function movePlayer(dx, dy) {
+      if (!isGameRunning) return;
+
+      const newCol = playerCol + dx;
+      const newRow = playerRow + dy;
+
+      if (newCol < 0 || newCol >= COLS) return;
+      if (newRow < 0 || newRow >= ROWS) return;
+
+      playerCol = newCol;
+      playerRow = newRow;
+      updatePlayerPosition();
+
+      checkState();
+    }
+
+    function checkState() {
+      const lane = levels[currentLevel].lanes[playerRow];
+
+      if (lane.type === "finish") {
+        phraseEl.innerHTML += `<div>✨ ${levels[currentLevel].text}</div>`;
+        currentLevel++;
+
+        if (currentLevel >= levels.length) {
+          statusEl.textContent = "🎉 Phrase complète débloquée";
+          phraseEl.innerHTML += "<br><strong>Indice final : Parmi les récits oubliés et les pages jamais tournées, se trouve la clé de la prochaine étape…</strong>";
+          isGameRunning = false;
+          return;
+        }
+
+        createRows();
+      }
+    }
+
+    function isCollision(a, b) {
+      return !(
+        a.right < b.left ||
+        a.left > b.right ||
+        a.bottom < b.top ||
+        a.top > b.bottom
+      );
+    }
+
+    function gameLoop() {
+      if (isGameRunning) {
+        obstacles.forEach((obs) => {
+          obs.x += obs.speed;
+
+          if (obs.speed > 0 && obs.x > game.clientWidth) {
+            obs.x = -60;
+          }
+
+          if (obs.speed < 0 && obs.x < -60) {
+            obs.x = game.clientWidth + 10;
+          }
+
+          obs.el.style.left = `${obs.x}px`;
+
+          if (obs.row === playerRow) {
+            const playerRect = playerEl.getBoundingClientRect();
+            const obsRect = obs.el.getBoundingClientRect();
+
+            if (isCollision(playerRect, obsRect)) {
+              resetPlayerPosition();
+            }
+          }
+        });
+      }
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowUp") movePlayer(0, -1);
+      if (e.key === "ArrowDown") movePlayer(0, 1);
+      if (e.key === "ArrowLeft") movePlayer(-1, 0);
+      if (e.key === "ArrowRight") movePlayer(1, 0);
+    });
+
+    upBtn.addEventListener("click", () => movePlayer(0, -1));
+    downBtn.addEventListener("click", () => movePlayer(0, 1));
+    leftBtn.addEventListener("click", () => movePlayer(-1, 0));
+    rightBtn.addEventListener("click", () => movePlayer(1, 0));
+
+    restartBtn.addEventListener("click", () => {
+      currentLevel = 0;
+      phraseEl.innerHTML = "";
+      isGameRunning = true;
+      createRows();
+    });
+
+    createRows();
+    gameLoop();
+  </script>
+</body>
+</html>
